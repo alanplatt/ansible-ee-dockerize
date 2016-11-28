@@ -9,14 +9,18 @@
 # Assumes that control machine (e.g. Jenkins) has access to s3 via instance profile policy
 - name: Fetch app artifact | S3
   s3:
-    bucket: "{{ dockerize_s3_bucket }}"
-    object: "{{ dockerize_artifact_s3_object }}"
-    dest:   "{{ dockerize_artifact_local_path }}"
-    mode:   get
+    bucket:  "{{ dockerize_artifact_s3_bucket }}"
+    object:  "{{ dockerize_artifact_s3_object }}"
+    region:  "{{ dockerize_artifact_s3_region|default('eu-west-1') }}"
+    dest:    "{{ dockerize_artifact_local_path }}"
+    mode:    get
+    profile: "{{ dockerize_artifact_s3_profile|default(omit) }}"
+    aws_access_key: "{{ dockerize_artifact_aws_access_key|default(omit) }}"
+    aws_secret_key: "{{ dockerize_artifact_aws_secret_key|default(omit) }}"
   delegate_to: 127.0.0.1
   become: false
   when: dockerize_artifact_s3_bucket
-  
+
 - name: Copy app artifact
   copy:
     src: "{{ dockerize_artifact_local_path }}"
