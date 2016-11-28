@@ -1,0 +1,94 @@
+---
+
+- name: Get list of artifact older than 12 hours
+  shell: >
+      find {{ dockerize_tmp_dir }} -iname '{{ dockerize_app_name }}*.gz' -ctime +0.5
+  register: artifacts
+
+- name: Clean up old artifacts
+  file: path={{ item }} state=absent
+  with_items: "{{ artifacts.stdout_lines }}"
+
+- name: Clean up dangling docker images
+  shell: >
+      docker rmi $(docker images -f "dangling=true" -q) || true
+
+#### Locally built images in local cache
+- name: Get from local cache old docker images of service
+  shell: >
+      docker images --format "{{ '{{' }}.Repository}}:{{ '{{' }}.Tag}}" \
+        --filter "before={{ dockerize_app_name }}:{{ dockerize_app_version|string }}" \
+        {{ dockerize_app_name }} || true
+  environment:
+    DOCKER_HOST: "unix:///var/run/docker.sock"
+  register: local_ref
+
+#- debug: var=local_ref
+
+- set_fact: local_images={{ local_ref.stdout_lines }}
+
+- name: Old images (local build)
+  debug: msg="Old images to clean up - {{ local_images[1:]|join(' ') }}"
+  when: local_images|default([])|length > 1
+
+- name: Clean up from local cache old docker images of service
+  shell: >
+      docker rmi {{ local_images[1:]|join(' ') }} || true
+  environment:
+    DOCKER_HOST: "unix:///var/run/docker.sock"
+  when: local_images|default([])|length > 1
+
+
+#### Images pushed to registry in local cache
+- name: Get from local cache old docker images of service pushed to registry
+  shell: >
+      docker images --format "{{ '{{' }}.Repository}}:{{ '{{' }}.Tag}}" \
+        --filter "before={{ dockerize_registry_domain }}/{{ dockerize_app_name }}:{{ dockerize_app_version }}" \
+        {{ dockerize_registry_domain }}/{{ dockerize_app_name }} || true
+  environment:
+    DOCKER_HOST: "unix:///var/run/docker.sock"
+  register: registry_ref
+
+#- debug: var=registry_ref
+
+- set_fact: registry_images={{ registry_ref.stdout_lines }}
+
+- name: Old images pushed to registry
+  debug: msg="Old images to clean up - {{ registry_images[1:]|join(' ') }}"
+  when: registry_images|default([])|length > 1
+
+- name: Clean up from local cache old docker images of service pushed to registry
+  shell: >
+      docker rmi {{ registry_images[1:]|join(' ') }} || true
+  environment:
+    DOCKER_HOST: "unix:///var/run/docker.sock"
+  when: registry_images|default([])|length > 1
+
+
+##### Images in swarm
+- name: Get from swarm cluster docker images of service
+  shell: >
+      docker images \
+        --format "{{ '{{' }}.Repository}}:{{ '{{' }}.Tag}}" \
+        {{ dockerize_registry_domain }}/{{ dockerize_app_name }} || true
+  environment:
+    DOCKER_HOST: "{{ dockerize_host_url }}"
+  register: swarm_ref
+  when: dockerize_cleanup_images_swarm
+
+- name: Set service images in swarm
+  set_fact: swarm_images={{ swarm_ref.stdout_lines|difference(["{{ dockerize_registry_domain }}/{{ dockerize_app_name }}:{{ dockerize_app_version }}"])|sort(reverse=true) }}
+  when: dockerize_cleanup_images_swarm
+
+- debug: var=swarm_images
+
+- name: Service images in swarm
+  debug: msg="Old images in swarm cluster to clean up - {{ swarm_images[1:]|join(' ') }}"
+  when: dockerize_cleanup_images_swarm and swarm_images|default([])|length > 1
+
+- name: Clean up from swarm cluster old docker images of service
+  shell: >
+      docker rmi {{ swarm_images[1:]|join(' ') }} || true
+  environment:
+    DOCKER_HOST: "{{ dockerize_host_url }}"
+  when: swarm_images|default([])|length > 1

@@ -1,0 +1,45 @@
+---
+## NODEJS APP - not intended for running on swarm cluster
+
+- name: Get ids of containers of service | nodejs
+  shell: >
+      docker ps -a -q --filter="label=service={{ dockerize_app_name }}" 
+  environment:
+    DOCKER_HOST: "{{ dockerize_host_url }}"
+  register: ids
+
+- debug: msg="Container IDs - {{ ids.stdout_lines|default([])|join(' ') }}"
+
+# Gradually degrade running containers
+- name: Stop current running containers of service | nodejs
+  shell: >
+      docker stop {{ item }}
+  environment:
+    DOCKER_HOST: "{{ dockerize_host_url }}"
+  with_items: "{{ ids.stdout_lines|default([]) }}"
+
+- name: Remove stopped containers of service | nodejs
+  shell: >
+      docker rm {{ item }}
+  environment:
+    DOCKER_HOST: "{{ dockerize_host_url }}"
+  with_items: "{{ ids.stdout_lines|default([]) }}"
+
+- name: Start new containers of service | nodejs
+  docker:
+    image:      "{{ dockerize_registry_domain }}/{{ dockerize_app_name }}:{{ dockerize_app_version }}"
+    count:      "{{ dockerize_container_count|int }}"
+    command:    "{{ dockerize_container_command }}"
+    docker_url: "{{ dockerize_host_url }}"
+    ports:      "{{ dockerize_nodejs_app_ports }}"
+    env:        "{{ dockerize_container_env_vars }}"
+    labels:
+      service: "{{ dockerize_app_name }}"
+      #com.docker.swarm.reschedule-policies: '["on-node-failure"]'
+    restart_policy: "unless-stopped"
+    state: started
+  register: run
+
+- name: Create app dist directory
+  include: nodejs-static-files.yml
+  when: dockerize_app_name == 'priority-web'

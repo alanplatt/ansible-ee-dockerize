@@ -1,0 +1,50 @@
+---
+# Docker, Consul & Registrator - Pre-requisites for testing this role
+- name: Install Docker, Consul and Registrator
+  hosts: test-kitchen
+
+  vars:
+    consul_datacenter:  kitchenDC
+    consul_encrypt_key: '74d+D4bl59FeKo0r+U5lSA=='
+    consul_primary_node: localhost
+    consul_nodes:
+      - "{{ ansible_default_ipv4.address }}"
+    registrator_service_registry_backend: consul
+    registrator_service_registry_host: "{{ ansible_default_ipv4.address }}"
+    registrator_service_registry_port: 8500
+
+  roles:
+    - wunzeco.docker
+    - wunzeco.docker-registry-v2
+    - wunzeco.consul
+    - wunzeco.registrator
+
+
+# Priority-Dockerize
+- name: Apply priority-dockerize
+  hosts: test-kitchen
+
+  vars:
+    dockerize_task:        "build:run"
+    dockerize_app_name:    "products"
+    dockerize_app_version: 0.0.1
+    dockerize_app_conf_file: /opt/app/config/config.yml
+    dockerize_registry_domain: "localhost:5000"
+    dockerize_app_env_vars:
+      SERVICE_NAME: "{{ dockerize_app_name }}-9080"
+
+    dockerize_artifact_local_path: /tmp/kitchen/roles/ansible-ee-dockerize/test/{{ dockerize_artifact }}
+    dockerize_container_count: 2
+    
+  pre_tasks:
+    - name: Start mongodb container
+      docker_container:
+        name: mongodb
+        image: 'mongo:3'
+        recreate: yes
+        ports:
+          - "27017:27017"
+        state: started
+        
+  roles:
+    - ansible-ee-dockerize

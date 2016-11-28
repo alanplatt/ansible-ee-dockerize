@@ -1,0 +1,63 @@
+---
+
+## Blue/Green deploy - without zero downtime
+
+
+# Get container ids for deploy colour
+- name: Get ids of containers of service
+  shell: >
+      docker ps -a -q --filter="label=service={{ dockerize_app_name }}" 
+  environment:
+    DOCKER_HOST: "{{ dockerize_host_url }}"
+  register: ids
+
+- debug: msg="Container IDs - {{ ids.stdout_lines|default([])|join(' ') }}"
+
+# Gradually degrade running containers
+- name: Stop current running containers of service
+  shell: >
+      docker stop {{ item }}
+  environment:
+    DOCKER_HOST: "{{ dockerize_host_url }}"
+  with_items: "{{ ids.stdout_lines|default([]) }}"
+
+- name: Remove stopped containers of service
+  shell: >
+      docker rm {{ item }}
+  environment:
+    DOCKER_HOST: "{{ dockerize_host_url }}"
+  with_items: "{{ ids.stdout_lines|default([]) }}"
+
+- name: Start new containers of service
+  docker:
+    image:      "{{ dockerize_registry_domain }}/{{ dockerize_app_name }}:{{ dockerize_app_version }}"
+    count:      "{{ dockerize_container_count|int }}"
+    command:    "{{ dockerize_container_command }}"
+    docker_url: "{{ dockerize_host_url }}"
+    env:        "{{ dockerize_container_env_vars }}"
+    labels:
+      service: "{{ dockerize_app_name }}"
+      com.docker.swarm.reschedule-policies: '["on-node-failure"]'
+    publish_all_ports:  yes
+    #restart_policy:     "unless-stopped"
+    state: started
+  register: run
+
+#  Warning: docker_container fails on Ansible 2.2 if "published_ports" is [ ALL ]
+#           https://github.com/ansible/ansible-modules-core/issues/4091
+#
+#- name: Start new containers of service
+#  docker_container:
+#    name:       "{{ dockerize_app_name }}{{ item }}"
+#    image:      "{{ dockerize_registry_domain }}/{{ dockerize_app_name }}:{{ dockerize_app_version }}"
+#    command:    "{{ dockerize_container_command }}"
+#    docker_url: "{{ dockerize_host_url }}"
+#    env:        "{{ dockerize_container_env_vars }}"
+#    labels:
+#      service: "{{ dockerize_app_name }}"
+#      com.docker.swarm.reschedule-policies: '["on-node-failure"]'
+#    published_ports: [ ALL ]
+#    #restart_policy:     "unless-stopped"
+#    state: started
+#  with_sequence: count={{ dockerize_container_count|int }}
+#  register: run

@@ -1,0 +1,87 @@
+---
+
+## Blue/Green deploy
+
+- name: Retrieve current container colour from consul
+  shell: >
+        curl -s "{{ dockerize_consul_base_url }}/services/{{ dockerize_app_name }}/colour" \
+              | jq -r '.[] .Value' \
+              | base64 --decode
+  register: colour
+  ignore_errors: true
+
+- debug: msg="Container colour retrieved from Consul - '{{ colour.stdout }}'"
+
+# Set new deploy colour
+- name: Set container colour
+  set_fact:
+    container_colour: "{{ colour.stdout }}"
+  when: colour|success
+
+- name: Set new container colour to blue
+  set_fact:
+    container_new_colour: 'blue'
+    container_colour:     'green'
+  when: container_colour|default(false) != 'blue'
+
+- name: Set new container colour to green
+  set_fact:
+    container_new_colour: 'green'
+    container_colour:     'blue'
+  when: container_colour|default(false) == 'blue'
+
+- debug: msg="Current colour - '{{ container_colour }}' | New colour - '{{ container_new_colour }}'"
+
+- name: Get ids of containers for the current container colour
+  shell: >
+      docker ps -a -q \
+          --filter="label=service={{ dockerize_app_name }}" \
+          --filter="label=colour={{ container_colour }}"
+  environment:
+    DOCKER_HOST: "{{ dockerize_host_url }}"
+  register: ids
+
+- debug: msg="Container IDs for {{ dockerize_app_name}}-{{ container_colour }} - {{ ids.stdout_lines|join(' ') }}"
+
+- name: Start container of the new colour
+  docker_container:
+    name:        "{{ dockerize_app_name }}-{{ container_new_colour }}-{{ item }}"
+    image:       "{{ dockerize_registry_domain }}/{{ dockerize_app_name }}:{{ dockerize_app_version }}"
+    command:     "{{ dockerize_container_command }}"
+    docker_host: "{{ dockerize_host_url }}"
+    env:         "{{ dockerize_container_env_vars }}"
+    labels:
+      colour:  "{{ container_new_colour }}"
+      service: "{{ dockerize_app_name }}"
+      com.docker.swarm.reschedule-policies: '["on-node-failure"]'
+    restart_policy: "on-failure"
+    state: started
+  with_sequence: count={{ dockerize_container_count }}
+  register: run
+
+- name: Wait 10 seconds to allow application running in new containers start
+  pause: seconds=10
+
+- name: Update container colour on Consul
+  uri:
+    url: "{{ dockerize_consul_base_url }}/services/{{ dockerize_app_name }}/colour"
+    method: PUT
+    body: "{{ container_new_colour }}"
+
+- name: Check updated container colour from consul
+  shell: >
+        curl -s "{{ dockerize_consul_base_url }}/services/{{ dockerize_app_name }}/colour" \
+              | jq -r '.[] .Value' \
+              | base64 --decode
+  register: colour
+
+- debug: msg="Updated container color is '{{ container_new_colour }}'"
+
+- name: Remove container of the current colour
+  docker_container:
+    name:        "{{ dockerize_app_name }}-{{ container_colour }}-{{ item }}"
+    image:       "{{ dockerize_registry_domain }}/{{ dockerize_app_name }}:{{ dockerize_app_version }}"
+    command:     "{{ dockerize_container_command }}"
+    docker_host: "{{ dockerize_host_url }}"
+    state: absent
+  with_sequence: count={{ ids.stdout_lines|default([])|length }}

@@ -1,0 +1,15 @@
+---
+
+- name: Create nodejs app assets directory structure
+  file:
+    path:     "{{ dockerize_nodejs_assets_dir }}"
+    recurse:  yes
+    state: directory
+
+- name: Copy nodejs app dist directory from artifact
+  synchronize:
+    src:       "{{ dockerize_build_dir }}/dist"
+    dest:      "{{ dockerize_nodejs_assets_dir }}"
+    delete:    yes
+    recursive: yes
+  delegate_to: "{{ inventory_hostname }}"

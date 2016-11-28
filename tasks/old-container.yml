@@ -1,0 +1,35 @@
+---
+## Warning: ansible-docker-module is unable to mount a volume with a single file
+##          See https://github.com/ansible/ansible-modules-core/issues/1158
+
+# WARNING: Beware that the filter applied in "docker ps" command will match any
+#          container that ends with the name string specified.
+#          It will be ideal to apply a more specific filter like "name=^myapp$",
+#          where "myapp" is the name of the container. So that it won't match 
+#          another container with "myapp" in its name (e.g. this-myapp-x)
+#          Unfortunately, with "^" in the pattern nothing is matched.
+- name: Get existing app container ids
+  shell: 'docker ps -a -q --filter="name={{ dockerize_app_name }}$"'
+  environment:
+    DOCKER_HOST: "{{ dockerize_host_url }}"
+  register: ids
+
+- debug: msg="Container IDs - {{ ids.stdout_lines|join(' ') }}"
+
+- name: Remove app docker container
+  shell: "docker rm -f {{ ids.stdout_lines|join(' ') }}"
+  environment:
+    DOCKER_HOST: "{{ dockerize_host_url }}"
+  when: ids.stdout_lines|join(' ') != ''
+
+# SERVICE_NAME env variable is for registrator
+- name: Run app docker container
+  docker:
+    name:       "{{ dockerize_app_name }}"
+    image:      "{{ dockerize_registry_domain }}/{{ dockerize_app_name }}:{{ dockerize_app_version }}"
+    command:    "{{ dockerize_app_conf_file }}"
+    docker_url: "{{ dockerize_host_url }}"
+    publish_all_ports: yes
+    env:        "{{ dockerize_app_env_vars }}"
+      #SERVICE_NAME: "{{ dockerize_app_name }}"
+    state: started

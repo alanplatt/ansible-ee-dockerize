@@ -1,0 +1,29 @@
+---
+
+# Warning:
+#   There is a bug in Ansible 2.1 docker_image module reported here:
+#     https://github.com/ansible/ansible-modules-core/issues/3719
+#   Error msg: "Registry returned more than one result for cms-service:7"
+#
+#   Fixed in Ansible 2.2
+#
+- name: Build docker image of app locally
+  docker_image:
+    name: "{{ dockerize_app_name }}"
+    tag:  "{{ dockerize_app_version|string }}"
+    path: "{{ dockerize_build_dir }}"
+    state: present
+
+- name: Tag docker image to push to private registry
+  docker_image:
+    name: "{{ dockerize_app_name }}"
+    tag:  "{{ dockerize_app_version|string }}"
+    repository: "{{ dockerize_registry_domain }}/{{ dockerize_app_name }}"
+    push: yes
+
+- name: Tag docker image with 'latest' to push to private registry
+  docker_image:
+    name: "{{ dockerize_app_name }}"
+    tag:  "{{ dockerize_app_version|string }}"
+    repository: "{{ dockerize_registry_domain }}/{{ dockerize_app_name }}"
+    push: yes

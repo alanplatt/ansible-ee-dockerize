@@ -1,0 +1,42 @@
+---
+dockerize_task: "build:run"
+dockerize_app_name:           # Mandatory
+dockerize_app_version:        # Mandatory
+dockerize_app_volume_dir: /usr/local/docker/volumes/{{ dockerize_app_name }}
+dockerize_app_env_vars:
+  SERVICE_NAME: "{{ dockerize_app_name }}"
+dockerize_service_name: "{{ dockerize_app_name }}"
+
+dockerize_tmp_dir:  /var/tmp/dockerize
+dockerize_build_dir: "{{ dockerize_tmp_dir }}/{{ dockerize_app_name }}"
+dockerize_artifact: "{{ dockerize_app_name|mandatory }}-{{ dockerize_app_version|mandatory }}.tar.gz"
+dockerize_artifact_local_path:  # Mandatory (if artifact source is local fs)
+
+dockerize_artifact_s3_bucket:   # Mandatory (if artifact source is s3)
+dockerize_artifact_s3_object:   # Mandatory (if artifact source is s3)
+
+dockerize_host_url: "unix:///var/run/docker.sock" # tcp://[host]:[port][path] or unix://path
+
+dockerize_app_conf_file: /opt/app/conf/app.yml
+dockerize_container_app_conf_dir: /opt/app/conf
+
+dockerize_registry_domain: "localhost:5000"
+
+dockerize_container_count:    1
+dockerize_container_command:  "{{ dockerize_app_conf_file }}"
+dockerize_container_env_vars: "{{ dockerize_app_env_vars }}"
+
+dockerize_consul_host: localhost
+dockerize_consul_port: 8500
+dockerize_consul_base_url: "http://{{ dockerize_consul_host }}:{{ dockerize_consul_port }}/v1/kv"
+
+
+##### NodeJS App ####
+dockerize_is_nodejs_app: false
+dockerize_nodejs_app_ports: [ "8080:8080" ]
+dockerize_nodejs_assets_dir: "/data/{{ dockerize_app_name }}"
+
+
+####### Clean Up ######
+dockerize_cleanup_images_local: true
+dockerize_cleanup_images_swarm: false       # for docker images pulled into Swarm cluster

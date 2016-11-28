@@ -1,0 +1,48 @@
+---
+
+- name: Cleanup previous docker build context dir for app
+  file: path={{ dockerize_build_dir }} state=absent
+
+- name: Create docker build context dir
+  file: path={{ dockerize_build_dir }} recurse=yes state=directory
+
+- name: Fetch app artifact | local-filesystem
+  copy:
+    src: "{{ dockerize_artifact_local_path }}"
+    dest: "{{ dockerize_tmp_dir }}/{{ dockerize_artifact }}"
+  when: dockerize_artifact_local_path
+  
+- name: Fetch app artifact | S3
+  s3:
+    bucket: "{{ dockerize_s3_bucket }}"
+    object: "{{ dockerize_artifact_s3_object }}"
+    dest:   "{{ dockerize_tmp_dir }}/{{ dockerize_artifact }}"
+    mode:   get
+  when: dockerize_artifact_s3_bucket
+  
+- name: Decompress app artifact
+  unarchive:
+    src:  "{{ dockerize_tmp_dir }}/{{ dockerize_artifact }}"
+    dest: "{{ dockerize_build_dir }}"
+    copy: no
+
+- name: Decompress app code
+  unarchive:
+    src:  "{{ dockerize_build_dir }}/{{ dockerize_app_name }}-{{ dockerize_app_version }}.zip"
+    dest: "{{ dockerize_build_dir }}"
+    copy: no
+
+- name: Build docker image of app
+  include: image.yml
+  when: "{{ 'build' in dockerize_task.split(':') }}"
+
+- name: Run docker container
+  include: container.yml
+  when: "{{ 'run' in dockerize_task.split(':') and not dockerize_is_nodejs_app }}"
+
+- name: Run nodejs app docker container
+  include: container-nodejs-app.yml
+  when: "{{ 'run' in dockerize_task.split(':') and dockerize_is_nodejs_app }}"
+
+- name: Clean up old app artifacts
+  include: cleanup.yml
