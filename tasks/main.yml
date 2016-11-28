@@ -6,19 +6,21 @@
 - name: Create docker build context dir
   file: path={{ dockerize_build_dir }} recurse=yes state=directory
 
-- name: Fetch app artifact | local-filesystem
-  copy:
-    src: "{{ dockerize_artifact_local_path }}"
-    dest: "{{ dockerize_tmp_dir }}/{{ dockerize_artifact }}"
-  when: dockerize_artifact_local_path
-  
+# Assumes that control machine (e.g. Jenkins) has access to s3 via instance profile policy
 - name: Fetch app artifact | S3
   s3:
     bucket: "{{ dockerize_s3_bucket }}"
     object: "{{ dockerize_artifact_s3_object }}"
-    dest:   "{{ dockerize_tmp_dir }}/{{ dockerize_artifact }}"
+    dest:   "{{ dockerize_artifact_local_path }}"
     mode:   get
+  delegate_to: 127.0.0.1
+  become: false
   when: dockerize_artifact_s3_bucket
+  
+- name: Copy app artifact
+  copy:
+    src: "{{ dockerize_artifact_local_path }}"
+    dest: "{{ dockerize_tmp_dir }}/{{ dockerize_artifact }}"
   
 - name: Decompress app artifact
   unarchive:

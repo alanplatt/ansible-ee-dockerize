@@ -3,14 +3,10 @@ priority-dockerize
 
 Ansible role to build/run docker containers.
 
-Supported sources of artifacts:
-- local filesystem (full path of file)
-- s3
-
 ## Assumptions
 
-- AWS S3 used for app artificat repository
-- Instance profile configured to allow download (GET) of artifact
+- Control machine (.i.e where ansible run from. E.g. Jenkins) has access to 
+  artifact on s3 via instance profile policy. Hence, no AWS creds is requested.
 
 ## Example
 
