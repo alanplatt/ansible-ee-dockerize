@@ -39,7 +39,7 @@
       service: "{{ dockerize_app_name }}"
       com.docker.swarm.reschedule-policies: '["on-node-failure"]'
     publish_all_ports:  yes
-    #restart_policy:     "unless-stopped"
+    restart_policy: always
     state: started
   register: run
 

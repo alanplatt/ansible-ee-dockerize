@@ -2,7 +2,7 @@
 driver:
   name: vagrant
   customize:
-    memory: 512
+    memory: 1024
 
 provisioner:
   name: ansible_playbook
@@ -11,6 +11,7 @@ provisioner:
   ansible_verbose: false
   ansible_verbosity: 2
   ansible_extra_flags: <%= ENV['ANSIBLE_EXTRA_FLAGS'] %>
+  #ansible_version: 2.2.0.0
 
 platforms:
   - name: ubuntu-14.04

@@ -36,3 +36,26 @@ describe command("docker ps | grep #{dockerize_app_name} | wc -l") do
   its(:exit_status) { should eq 0 }
   its(:stdout) { should match '2' }
 end
+
+
+appcontainers = `sudo docker ps --format '{{.Names}} {{.Image}}'`.split("\n")
+appcontainers.select! do | e |
+  e.split(' ').last() ==
+    "#{dockerize_registry_domain}/#{dockerize_app_name}:#{dockerize_app_version}"
+end
+appcontainers.map! do | e |
+  e.split(' ').first()
+end
+
+describe "Applications containers" do
+  it "should be 2 app containers" do
+    expect(appcontainers.length).to eq(2)
+  end
+end
+
+appcontainers.each do | e |
+  describe docker_container(e) do
+    its(['HostConfig.RestartPolicy.Name']) { should eq 'always' }
+    its(['HostConfig.RestartPolicy.MaximumRetryCount']) { should eq 0 }
+  end
+end
